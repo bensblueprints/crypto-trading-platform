@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { verifyPassword, setSession } from '@/lib/auth';
+import { verifyPassword, generateToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,13 +33,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await setSession({
+    // Generate token
+    const token = generateToken({
       userId: user.id,
       email: user.email,
       username: user.username,
     });
 
-    return NextResponse.json({
+    // Create response with cookie
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
@@ -47,6 +49,17 @@ export async function POST(request: NextRequest) {
         username: user.username,
       },
     });
+
+    // Set cookie on response
+    response.cookies.set('auth-token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(

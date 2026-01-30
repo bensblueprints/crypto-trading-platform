@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
-import { clearSession } from '@/lib/auth';
 
 export async function POST() {
   try {
-    await clearSession();
-    return NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true });
+
+    // Delete cookie by setting it to expire immediately
+    response.cookies.set('auth-token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Logout error:', error);
     return NextResponse.json(
