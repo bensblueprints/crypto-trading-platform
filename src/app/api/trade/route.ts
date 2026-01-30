@@ -4,13 +4,22 @@ import { getSession } from '@/lib/auth';
 
 const TRADING_FEE_PERCENT = 0.001;
 
-const MOCK_PRICES: Record<string, number> = {
-  'BTC/USDT': 43250.50,
-  'ETH/USDT': 2635.75,
-  'BNB/USDT': 318.20,
-  'SOL/USDT': 102.45,
-  'XRP/USDT': 0.5520,
-};
+async function fetchCurrentPrice(pair: string): Promise<number | null> {
+  try {
+    const symbol = pair.replace('/', '');
+    const response = await fetch(
+      `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`,
+      { next: { revalidate: 1 } }
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    return parseFloat(data.price);
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,12 +44,19 @@ export async function POST(request: NextRequest) {
     }
 
     const [baseCurrency, quoteCurrency] = pair.split('/');
-    const currentPrice = orderType === 'MARKET'
-      ? MOCK_PRICES[pair] || 0
-      : parseFloat(limitPrice);
 
-    if (!currentPrice) {
-      return NextResponse.json({ error: 'Invalid trading pair' }, { status: 400 });
+    let currentPrice: number;
+    if (orderType === 'MARKET') {
+      const livePrice = await fetchCurrentPrice(pair);
+      if (!livePrice) {
+        return NextResponse.json({ error: 'Unable to fetch current price' }, { status: 500 });
+      }
+      currentPrice = livePrice;
+    } else {
+      currentPrice = parseFloat(limitPrice);
+      if (!currentPrice || currentPrice <= 0) {
+        return NextResponse.json({ error: 'Invalid limit price' }, { status: 400 });
+      }
     }
 
     const total = numAmount * currentPrice;

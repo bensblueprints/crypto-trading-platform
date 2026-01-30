@@ -49,11 +49,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  const ADMIN_EMAILS = ['admin@cryptotrade.com', 'ben@justfeatured.com'];
+  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
+
   const navItems = [
     { href: '/dashboard', label: 'Overview', icon: '📊' },
     { href: '/dashboard/trade', label: 'Trade', icon: '📈' },
     { href: '/dashboard/wallet', label: 'Wallet', icon: '💼' },
     { href: '/dashboard/history', label: 'History', icon: '📜' },
+    ...(isAdmin ? [{ href: '/dashboard/admin', label: 'Admin', icon: '⚙️' }] : []),
   ];
 
   return (
