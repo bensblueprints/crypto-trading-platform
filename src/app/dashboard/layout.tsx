@@ -55,6 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = [
     { href: '/dashboard', label: 'Overview', icon: '📊' },
     { href: '/dashboard/trade', label: 'Trade', icon: '📈' },
+    { href: '/dashboard/bots', label: 'Bots', icon: '🤖' },
     { href: '/dashboard/wallet', label: 'Wallet', icon: '💼' },
     { href: '/dashboard/history', label: 'History', icon: '📜' },
     ...(isAdmin ? [{ href: '/dashboard/admin', label: 'Admin', icon: '⚙️' }] : []),

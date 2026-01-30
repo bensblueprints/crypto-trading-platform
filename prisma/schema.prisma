@@ -18,6 +18,7 @@ model User {
   wallets       Wallet[]
   transactions  Transaction[]
   trades        Trade[]
+  tradingBots   TradingBot[]
 }
 
 model Wallet {
@@ -78,4 +79,48 @@ model PlatformSettings {
   tradingFee      Float     @default(0.001) // 0.1% trading fee
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model TradingBot {
+  id              String    @id @default(uuid())
+  userId          String
+  pair            String    // BTC/USDT, ETH/USDT, etc.
+  strategy        String    // DCA, GRID, SCALPER
+  enabled         Boolean   @default(false)
+  investment      Float     @default(10) // Amount per trade in USDT
+  interval        Int       @default(60) // Minutes between trades
+
+  // Strategy-specific settings (stored as JSON string)
+  settings        String    @default("{}")
+
+  // Bot state
+  totalInvested   Float     @default(0)
+  totalProfit     Float     @default(0)
+  tradesCount     Int       @default(0)
+  avgEntryPrice   Float     @default(0)
+  holdings        Float     @default(0) // Current crypto holdings
+
+  lastTradeAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id])
+  botTrades       BotTrade[]
+
+  @@unique([userId, pair, strategy])
+}
+
+model BotTrade {
+  id            String    @id @default(uuid())
+  botId         String
+  type          String    // BUY, SELL
+  amount        Float
+  price         Float
+  total         Float
+  fee           Float     @default(0)
+  profit        Float     @default(0) // Profit/loss for this trade
+  reason        String    // Why the bot made this trade
+  createdAt     DateTime  @default(now())
+
+  bot           TradingBot @relation(fields: [botId], references: [id])
 }
