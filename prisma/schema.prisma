@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  username      String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  wallets       Wallet[]
+  transactions  Transaction[]
+  trades        Trade[]
+}
+
+model Wallet {
+  id            String    @id @default(uuid())
+  userId        String
+  currency      String    // BTC, ETH, USDT, etc.
+  balance       Float     @default(0)
+  lockedBalance Float     @default(0) // For pending trades
+  address       String?   // Crypto wallet address from Cryptomus
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, currency])
+}
+
+model Transaction {
+  id              String    @id @default(uuid())
+  userId          String
+  type            String    // DEPOSIT, WITHDRAWAL
+  currency        String
+  amount          Float
+  fee             Float     @default(0) // Platform fee (1%)
+  cryptomusFee    Float     @default(0) // Cryptomus network fee
+  status          String    @default("PENDING") // PENDING, COMPLETED, FAILED
+  cryptomusId     String?   // Cryptomus transaction ID
+  txHash          String?   // Blockchain transaction hash
+  walletAddress   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id])
+}
+
+model Trade {
+  id            String    @id @default(uuid())
+  userId        String
+  pair          String    // BTC/USDT, ETH/USDT, etc.
+  type          String    // BUY, SELL
+  orderType     String    // MARKET, LIMIT
+  amount        Float
+  price         Float
+  total         Float
+  fee           Float     @default(0)
+  status        String    @default("PENDING") // PENDING, FILLED, CANCELLED
+  filledAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id])
+}
+
+model PlatformSettings {
+  id              String    @id @default("settings")
+  depositFee      Float     @default(0.01) // 1% deposit fee
+  withdrawalFee   Float     @default(0.005) // 0.5% withdrawal fee
+  tradingFee      Float     @default(0.001) // 0.1% trading fee
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
