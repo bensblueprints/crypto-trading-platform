@@ -78,6 +78,14 @@ model PlatformSettings {
   depositFee      Float     @default(0.01) // 1% deposit fee
   withdrawalFee   Float     @default(0.005) // 0.5% withdrawal fee
   tradingFee      Float     @default(0.001) // 0.1% trading fee
+
+  // Trading Mode: SIMULATED or REAL
+  tradingMode     String    @default("SIMULATED")
+
+  // Binance API credentials (encrypted in production)
+  binanceApiKey   String?
+  binanceSecret   String?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }

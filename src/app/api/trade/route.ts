@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { BinanceClient, formatQuantity, BINANCE_MIN_QUANTITIES } from '@/lib/binance';
 
 const TRADING_FEE_PERCENT = 0.001;
+
+interface PlatformSettings {
+  tradingMode: string;
+  binanceApiKey: string | null;
+  binanceSecret: string | null;
+}
+
+async function getPlatformSettings(): Promise<PlatformSettings | null> {
+  try {
+    const settings = await prisma.platformSettings.findUnique({
+      where: { id: 'settings' },
+    });
+    return settings;
+  } catch {
+    return null;
+  }
+}
 
 async function fetchCurrentPrice(pair: string): Promise<number | null> {
   try {
@@ -43,20 +61,80 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
+    // Get platform settings to check trading mode
+    const settings = await getPlatformSettings();
+    const isRealTrading = settings?.tradingMode === 'REAL' && settings?.binanceApiKey && settings?.binanceSecret;
+
     const [baseCurrency, quoteCurrency] = pair.split('/');
+    const binanceSymbol = pair.replace('/', '');
+
+    // Check minimum quantity for real trading
+    if (isRealTrading) {
+      const minQty = BINANCE_MIN_QUANTITIES[binanceSymbol] || 0.00001;
+      if (numAmount < minQty) {
+        return NextResponse.json(
+          { error: `Minimum order quantity for ${pair} is ${minQty}` },
+          { status: 400 }
+        );
+      }
+    }
 
     let currentPrice: number;
+    let binanceOrderId: string | null = null;
+    let realExecutionPrice: number | null = null;
     if (orderType === 'MARKET') {
       const livePrice = await fetchCurrentPrice(pair);
       if (!livePrice) {
         return NextResponse.json({ error: 'Unable to fetch current price' }, { status: 500 });
       }
       currentPrice = livePrice;
+
+      // Execute real trade on Binance if in REAL mode
+      if (isRealTrading && settings?.binanceApiKey && settings?.binanceSecret) {
+        try {
+          const client = new BinanceClient({
+            apiKey: settings.binanceApiKey,
+            apiSecret: settings.binanceSecret,
+          });
+
+          // Format quantity to Binance precision
+          const formattedQty = formatQuantity(binanceSymbol, numAmount);
+
+          // Execute market order on Binance
+          const binanceOrder = await client.placeMarketOrder(binanceSymbol, type, formattedQty);
+
+          binanceOrderId = String(binanceOrder.orderId);
+
+          // Calculate actual execution price from fills
+          if (binanceOrder.fills && binanceOrder.fills.length > 0) {
+            let totalQty = 0;
+            let totalValue = 0;
+            for (const fill of binanceOrder.fills) {
+              const fillQty = parseFloat(fill.qty);
+              const fillPrice = parseFloat(fill.price);
+              totalQty += fillQty;
+              totalValue += fillQty * fillPrice;
+            }
+            realExecutionPrice = totalValue / totalQty;
+            currentPrice = realExecutionPrice;
+          }
+
+          console.log(`Binance order executed: ${binanceOrderId} at ${currentPrice}`);
+        } catch (binanceError) {
+          console.error('Binance trade error:', binanceError);
+          return NextResponse.json(
+            { error: `Failed to execute trade on Binance: ${binanceError instanceof Error ? binanceError.message : 'Unknown error'}` },
+            { status: 500 }
+          );
+        }
+      }
     } else {
       currentPrice = parseFloat(limitPrice);
       if (!currentPrice || currentPrice <= 0) {
         return NextResponse.json({ error: 'Invalid limit price' }, { status: 400 });
       }
+      // Note: Limit orders in REAL mode would need additional handling (place order and wait for fill)
+      // For now, limit orders remain simulated even in REAL mode
     }
 
     const total = numAmount * currentPrice;
