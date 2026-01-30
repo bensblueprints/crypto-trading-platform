@@ -6,12 +6,21 @@ export async function POST(request: NextRequest) {
   try {
     // Safely parse JSON body
     let body: { email?: string; password?: string };
+    let rawText = '';
     try {
-      const text = await request.text();
-      body = JSON.parse(text);
+      rawText = await request.text();
+      body = JSON.parse(rawText);
     } catch (parseError) {
       return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
+        {
+          error: 'Invalid JSON in request body',
+          debug: {
+            parseError: parseError instanceof Error ? parseError.message : 'Unknown',
+            bodyLength: rawText.length,
+            bodyPreview: rawText.substring(0, 200),
+            contentType: request.headers.get('content-type'),
+          }
+        },
         { status: 400 }
       );
     }
